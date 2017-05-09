@@ -35,21 +35,25 @@ int main(int argc, char *argv[])
     while ((bytesread = read(infd, buf, BLOCK)) > 0)
     {
         int newLineIndex = 0;
-
-        for (int i = 0; i < bytesread; i++)
+		int i;
+        for (i = 0; i < bytesread; i++)
         {
             if (buf[i] == '\n')
             {
-                if (++linecount >= 500)
-                {
-                    linecount = 0;
-                    write(writefd, buf + newLineIndex, i);
-                    snprintf(fname, 512, "%s.%d", argv[1], ++fcount);
-                    close(writefd);
-                    writefd = open(fname, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-                    newLineIndex = i;
+                if (++linecount < 500)
                     continue;
-                }
+
+                if(fork() >= 0)
+                    continue;
+                    
+                linecount = 0;
+                write(writefd, buf + newLineIndex, i);
+                snprintf(fname, 512, "%s.%d", argv[1], ++fcount);
+                close(writefd);
+                writefd = open(fname, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+                newLineIndex = i;
+                continue;
+                
             }
         }
 
