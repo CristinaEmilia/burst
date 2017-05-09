@@ -42,16 +42,13 @@ int main(int argc, char *argv[])
     {
         if(lineBufferIndex + bytesRead > lineBufferLen)
         { 
-            lineBuffer = (char*) realloc(lineBuffer,lineBufferLen + BLOCK);
-            printf("EXTENDING BUFFER FROM %d to %d\n",lineBufferLen,lineBufferLen + BLOCK);
             lineBufferLen = lineBufferLen + BLOCK; 
-            
+            lineBuffer = (char*) realloc(lineBuffer,lineBufferLen);            
         }
         //copy the bytes read to the current readBufferfer
         memcpy(lineBuffer+lineBufferIndex,readBuffer,bytesRead);
         lineBufferIndex += bytesRead;
-        printf("read from %d to %d %d bytes\n",lineBufferIndex - bytesRead, lineBufferIndex,bytesRead);
-        
+   
         int i;
         for (i = 0; i < bytesRead; i++)
         {
@@ -66,22 +63,17 @@ int main(int argc, char *argv[])
                 }
 
                 snprintf(fileName, 512, "%s.%d", argv[1], ++fileCount);
-                int lineBufferOffset = (BLOCK - i);
+                int lineBufferOffset = 0 - BLOCK + i + 1;
                 if(pid > 0) {  
                     //parent
                    
                     //set the line buffer index to 0, but keep using same line buffer
-                    memcpy(lineBuffer,lineBuffer + lineBufferIndex - lineBufferOffset + 1, i + 1);
-                    printf("lineBufferIndex: %d - index: %d - offset: %d - bytesread: %d - writing total: %d\n",lineBufferIndex,i,lineBufferOffset,bytesRead,lineBufferIndex - lineBufferOffset + 1);
-                    lineBufferIndex = i + 1;
-                    memset(lineBuffer + i + 1,0,lineBufferLen);
-                    if(fileCount == 2)
-                        return;
-                    break;
+                    memcpy(lineBuffer,lineBuffer + lineBufferIndex - BLOCK + i + 1, BLOCK - i - 1);
+                    lineBufferIndex = BLOCK - i + 1;
                 } else { 
                     //child
                     int writefd = open(fileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-                    write(writefd,lineBuffer, lineBufferIndex - lineBufferOffset + 1);
+                    write(writefd,lineBuffer, lineBufferIndex - BLOCK + i + 1);
                     close(writefd);
                     return 0;
                 }

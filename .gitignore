@@ -1,3 +1,4 @@
 *.o
 burst
 *.txt.*
+*.txt
