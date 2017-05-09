@@ -43,18 +43,21 @@ int main(int argc, char *argv[])
         if(lineBufferIndex + bytesRead > lineBufferLen)
         { 
             lineBuffer = (char*) realloc(lineBuffer,lineBufferLen + BLOCK);
+            printf("EXTENDING BUFFER FROM %d to %d\n",lineBufferLen,lineBufferLen + BLOCK);
             lineBufferLen = lineBufferLen + BLOCK; 
+            
         }
-
         //copy the bytes read to the current readBufferfer
         memcpy(lineBuffer+lineBufferIndex,readBuffer,bytesRead);
         lineBufferIndex += bytesRead;
-
+        printf("read from %d to %d %d bytes\n",lineBufferIndex - bytesRead, lineBufferIndex,bytesRead);
+        
         int i;
         for (i = 0; i < bytesRead; i++)
         {
-            if (readBuffer[i] == '\n')
+            if (readBuffer[i] == '\n' && ++lineCount >= 500)
             {
+                lineCount = 0;
                 int pid = fork();
                 if(pid < 0)
                 {
@@ -68,18 +71,33 @@ int main(int argc, char *argv[])
                     //parent
                    
                     //set the line buffer index to 0, but keep using same line buffer
-                    memcpy(lineBuffer,lineBuffer + lineBufferIndex - lineBufferOffset, i);
-                    lineBufferIndex = i;
+                    memcpy(lineBuffer,lineBuffer + lineBufferIndex - lineBufferOffset + 1, i + 1);
+                    printf("lineBufferIndex: %d - index: %d - offset: %d - bytesread: %d - writing total: %d\n",lineBufferIndex,i,lineBufferOffset,bytesRead,lineBufferIndex - lineBufferOffset + 1);
+                    lineBufferIndex = i + 1;
+                    memset(lineBuffer + i + 1,0,lineBufferLen);
+                    if(fileCount == 2)
+                        return;
+                    break;
                 } else { 
                     //child
                     int writefd = open(fileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-                    write(writefd,lineBuffer, lineBufferIndex - lineBufferOffset);
+                    write(writefd,lineBuffer, lineBufferIndex - lineBufferOffset + 1);
                     close(writefd);
+                    return 0;
                 }
-              
             }
         }
-        
+    }
+
+    if(lineBufferIndex > 0) {
+        snprintf(fileName, 512, "%s.%d", argv[1], ++fileCount);
+        if(fork() == 0)
+        {
+            int writefd = open(fileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+            write(writefd,lineBuffer, lineBufferIndex);
+            close(writefd);
+            return 0;
+        }
     }
 
     close(readfd);
