@@ -127,8 +127,8 @@ void processBurst(struct burst_data *data)
                 
                 //set the line buffer index to 0, but keep using same line buffer
                 if(i < data->bytesRead - 1) {
-                    memcpy(data->lineBuffer,data->lineBuffer + data->lineBufferIndex - data->bytesRead + i + 1, data->bytesRead - i - 1);
-                    data->lineBufferIndex = data->bytesRead - i + 1;
+                    memcpy(data->lineBuffer,data->readBuffer + i + 1, data->bytesRead - i - 1);
+                    data->lineBufferIndex = data->bytesRead - i - 1;
                 } else {
                     data->lineBufferIndex = 0;
                 }
