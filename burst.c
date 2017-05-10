@@ -191,8 +191,6 @@ int try_compressed(char * fileName, int raw)
     else
         archive_read_support_format_all(a);
 
-    printf("testing archive\n");
-
     // actually open the archive file
     res = archive_read_open_filename(a, fileName, BLOCK);
     if(res != ARCHIVE_OK)
@@ -204,7 +202,7 @@ int try_compressed(char * fileName, int raw)
     {
         struct burst_data data;
         const char * entryName = archive_entry_pathname(entry);
-        printf("archive_entry %s is ok.\n",entryName);
+
         if(strcmp(entryName,"data") != 0)
             data.fileName = (char*)entryName;
         else
@@ -238,7 +236,6 @@ int try_compressed(char * fileName, int raw)
 
         data.eof = TRUE;
         processBurst(&data);
-        printf("decompressed\n");
     }
     
     archive_read_close(a);
@@ -261,6 +258,5 @@ int main(int argc, char *argv[])
     if(try_compressed(argv[1],TRUE))
         return TRUE;
 
-    printf("attempting burst\n");
 	return burst(argv[1]);
 }
