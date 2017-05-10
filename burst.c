@@ -2,7 +2,7 @@
   burst.c
   splits a file into 500 lines segments
 */
-
+#include "burst.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -11,24 +11,31 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define BLOCK 2048
-
-
-
-
-int main(int argc, char *argv[])
+void writeBuffer(char * file,char * buffer, int len)
 {
-    int readfd = STDIN_FILENO;
-
-    // open a file
-    if (argc > 1)
+    int writefd = open(file, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+    if(writefd <= 0)
     {
-        readfd = open(argv[1], O_RDONLY);
+        fprintf(stderr,"ERROR: unable to open %s for writing",file);
+        return;
     }
+    write(writefd,buffer,len);
+    close(writefd);
+}
+
+int burst(char* fileName)
+{
+    int readfd = open(fileName, O_RDONLY);
+    if(readfd <= 0)
+    {
+        fprintf(stderr,"ERROR: unable to open file %s",fileName);
+        return -1;
+    }
+
 
     int fileCount = 0;
     int lineCount = 0;
-    char fileName[512];
+    char writeFile[512];
    
     // read the opened file
     char readBuffer[BLOCK];
@@ -52,7 +59,7 @@ int main(int argc, char *argv[])
         int i;
         for (i = 0; i < bytesRead; i++)
         {
-            if (readBuffer[i] == '\n' && ++lineCount >= 500)
+            if (readBuffer[i] == '\n' && ++lineCount >= LINE_COUNT)
             {
                 lineCount = 0;
                 int pid = fork();
@@ -62,8 +69,7 @@ int main(int argc, char *argv[])
                     return 1;
                 }
 
-                snprintf(fileName, 512, "%s.%d", argv[1], ++fileCount);
-                int lineBufferOffset = 0 - BLOCK + i + 1;
+                snprintf(writeFile, 512, "%s.%d", fileName, ++fileCount);
                 if(pid > 0) {  
                     //parent
                    
@@ -72,9 +78,7 @@ int main(int argc, char *argv[])
                     lineBufferIndex = BLOCK - i + 1;
                 } else { 
                     //child
-                    int writefd = open(fileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-                    write(writefd,lineBuffer, lineBufferIndex - BLOCK + i + 1);
-                    close(writefd);
+                    writeBuffer(writeFile,lineBuffer, lineBufferIndex - BLOCK + i + 1);
                     return 0;
                 }
             }
@@ -82,12 +86,10 @@ int main(int argc, char *argv[])
     }
 
     if(lineBufferIndex > 0) {
-        snprintf(fileName, 512, "%s.%d", argv[1], ++fileCount);
+        snprintf(writeFile, 512, "%s.%d", fileName, ++fileCount);
         if(fork() == 0)
         {
-            int writefd = open(fileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-            write(writefd,lineBuffer, lineBufferIndex);
-            close(writefd);
+            writeBuffer(writeFile,lineBuffer,lineBufferIndex);
             return 0;
         }
     }
@@ -95,4 +97,15 @@ int main(int argc, char *argv[])
     close(readfd);
 
     return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	if(argc < 1)
+	{
+		fprintf(stderr,"ERROR: Please provide file name. Example: burst file.txt");
+		return -1;
+	}
+
+	return burst(argv[0]);
 }

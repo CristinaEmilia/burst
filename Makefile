@@ -1,11 +1,16 @@
-all: burst
+CC=gcc
+CCOPTS=-std=gnu99 -Wall -g
 
-burst.o: burst.c
-	gcc -c burst.c -o burst.o
+EXE=burst
+OBJS=burst.o
+
+all: ${EXE}
 
 burst: burst.o
-	gcc burst.o -o burst
+	${CC} $^ -o $@
+
+%.o : %.c
+	${CC} ${CCOPTS} -c $<
 
 clean:
-	-rm -f burst.o
-	-rm -f burst
+	rm -f ${EXE} ${OBJS} ${LIBS}
