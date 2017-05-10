@@ -125,7 +125,7 @@ int burst(char* fileName)
     return 0;
 }
 
-int test_archive(char * fileName)
+int try_compressed(char * fileName)
 {
     int res;
     // setup the archive object
@@ -140,15 +140,13 @@ int test_archive(char * fileName)
     if(res != ARCHIVE_OK)
         return FALSE;
 
-    
-        
     // go to the first header
     struct archive_entry* entry;
     res = archive_read_next_header(a, &entry);
     if(res != ARCHIVE_OK)
         return FALSE;
 
-    printf("archive_entry is ok\n");
+    printf("archive_entry is ok.\n");
 
     struct burst_data data;
     data.fileName = fileName;
@@ -185,7 +183,7 @@ int test_archive(char * fileName)
 
     // close it up
     archive_read_close(a);
-
+    printf("decompressed\n");
     return TRUE;
 }
 
@@ -197,8 +195,9 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-    if(test_archive(argv[1]))
+    if(try_compressed(argv[1]))
         return TRUE;
 
+    printf("attempting burst\n");
 	return burst(argv[1]);
 }
