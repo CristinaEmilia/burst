@@ -1,7 +1,7 @@
 #ifndef INCLUDED_BURST_H
 #define INCLUDED_BURST_H
 
-#define BLOCK 2048
+#define BLOCK 1024
 #define LINE_COUNT 500
 
 

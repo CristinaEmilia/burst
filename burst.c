@@ -16,7 +16,51 @@
 #define TRUE 1
 #define FALSE 0
 
+//borrowed from http://stackoverflow.com/a/2736841
+char *remove_ext (char* mystr, char dot, char sep) {
+    char *retstr, *lastdot, *lastsep;
 
+    // Error checks and allocate string.
+
+    if (mystr == NULL)
+        return NULL;
+    if ((retstr = malloc (strlen (mystr) + 1)) == NULL)
+        return NULL;
+
+    // Make a copy and find the relevant characters.
+
+    strcpy (retstr, mystr);
+    lastdot = strrchr (retstr, dot);
+    lastsep = (sep == 0) ? NULL : strrchr (retstr, sep);
+
+    // If it has an extension separator.
+
+    if (lastdot != NULL) {
+        // and it's before the extenstion separator.
+
+        if (lastsep != NULL) {
+            if (lastsep < lastdot) {
+                // then remove it.
+
+                *lastdot = '\0';
+            }
+        } else {
+            // Has extension separator with no path separator.
+
+            *lastdot = '\0';
+        }
+    }
+
+    // Return the modified string.
+
+    return retstr;
+}
+
+char *get_filename_ext(char *filename) {
+    char *dot = strrchr(filename, '.');
+    if(!dot || dot == filename) return "";
+    return dot + 1;
+}
 
 
 void writeBuffer(char * file,char * buffer, int len)
@@ -62,7 +106,9 @@ void processBurst(struct burst_data *data)
     for (i = 0; i < data->bytesRead; i++)
     {
         if (data->readBuffer[i] == '\n')
+        {    
             data->lineCount += 1;
+        }
         if(data->lineCount >= LINE_COUNT)
         {
             data->lineCount = 0;
@@ -72,6 +118,7 @@ void processBurst(struct burst_data *data)
                 fprintf(stderr, "ERROR: unable to fork\n");
                 _exit(EXIT_FAILURE);
             }
+          
             char writeFile[512];
             data->fileCount += 1;
             snprintf(writeFile, 512, "%s.%d", data->fileName, data->fileCount);
@@ -79,12 +126,16 @@ void processBurst(struct burst_data *data)
                 //parent
                 
                 //set the line buffer index to 0, but keep using same line buffer
-                memcpy(data->lineBuffer,data->lineBuffer + data->lineBufferIndex - BLOCK + i + 1, BLOCK - i - 1);
-                data->lineBufferIndex = BLOCK - i + 1;
+                if(i < data->bytesRead - 1) {
+                    memcpy(data->lineBuffer,data->lineBuffer + data->lineBufferIndex - data->bytesRead + i + 1, data->bytesRead - i - 1);
+                    data->lineBufferIndex = data->bytesRead - i + 1;
+                } else {
+                    data->lineBufferIndex = 0;
+                }
             } else { 
                 //child
 
-                writeBuffer(writeFile,data->lineBuffer, data->lineBufferIndex - BLOCK + i + 1);
+                writeBuffer(writeFile,data->lineBuffer, data->lineBufferIndex - data->bytesRead + i + 1);
                 _exit(EXIT_SUCCESS);
             }
         }
@@ -125,65 +176,72 @@ int burst(char* fileName)
     return 0;
 }
 
-int try_compressed(char * fileName)
+int try_compressed(char * fileName, int raw)
 {
+    char * ext = get_filename_ext(fileName);
+    if(strcmp(ext,"gz") != 0 && strcmp(ext,"bz2") != 0 && strcmp(ext,"tar") != 0 && strcmp(ext, "cpio") != 0 && strcmp(ext,"zip") != 0)
+        return FALSE;
+  
     int res;
     // setup the archive object
     struct archive* a = archive_read_new();
     archive_read_support_filter_all(a);
-    archive_read_support_format_raw(a);
+    if(raw)
+        archive_read_support_format_raw(a);
+    else
+        archive_read_support_format_all(a);
 
     printf("testing archive\n");
 
     // actually open the archive file
-    res = archive_read_open_filename(a, fileName, 10240);
+    res = archive_read_open_filename(a, fileName, BLOCK);
     if(res != ARCHIVE_OK)
         return FALSE;
 
     // go to the first header
     struct archive_entry* entry;
-    res = archive_read_next_header(a, &entry);
-    if(res != ARCHIVE_OK)
-        return FALSE;
-
-    printf("archive_entry is ok.\n");
-
-    struct burst_data data;
-    data.fileName = fileName;
-    data.eof = FALSE;
-    data.fileCount = 0;
-    data.lineCount = 0;
-
-    // read the opened file
-    data.lineBufferLen = BLOCK;
-    data.lineBufferIndex = 0;
-    data.lineBuffer = (char*)malloc(BLOCK);
-    data.bytesRead = 0;
-    
-
-    for (;;) 
+    while((res = archive_read_next_header(a, &entry)) == ARCHIVE_OK)
     {
-        int size = archive_read_data(a, data.readBuffer, BLOCK);
-        if (size < 0)
+        struct burst_data data;
+        const char * entryName = archive_entry_pathname(entry);
+        printf("archive_entry %s is ok.\n",entryName);
+        if(strcmp(entryName,"data") != 0)
+            data.fileName = (char*)entryName;
+        else
+            data.fileName = fileName;
+        data.eof = FALSE;
+        data.fileCount = 0;
+        data.lineCount = 0;
+
+        // read the opened file
+        data.lineBufferLen = BLOCK;
+        data.lineBufferIndex = 0;
+        data.lineBuffer = (char*)malloc(BLOCK);
+        data.bytesRead = 0;
+
+        for (;;) 
         {
-            fprintf(stderr,"ERROR: Unable to read archive data");
-            _exit(EXIT_FAILURE);
+            int size = archive_read_data(a, data.readBuffer, BLOCK);
+            if (size < 0)
+            {
+                fprintf(stderr,"ERROR: Unable to read archive data");
+                _exit(EXIT_FAILURE);
+            }
+
+            // EOF
+            if (size == 0)
+                break;
+
+            data.bytesRead = size;
+            processBurst(&data);
         }
 
-        // EOF
-        if (size == 0)
-            break;
-
-        data.bytesRead = size;
+        data.eof = TRUE;
         processBurst(&data);
+        printf("decompressed\n");
     }
-
-    data.eof = TRUE;
-    processBurst(&data);
-
-    // close it up
+    
     archive_read_close(a);
-    printf("decompressed\n");
     return TRUE;
 }
 
@@ -195,7 +253,12 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-    if(try_compressed(argv[1]))
+    //attempt reading an archive
+    if(try_compressed(argv[1],FALSE))
+        return TRUE;
+
+    //attempt reading compressed
+    if(try_compressed(argv[1],TRUE))
         return TRUE;
 
     printf("attempting burst\n");
